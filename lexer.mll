@@ -21,7 +21,6 @@ rule token = parse
  | "false" { BOOL(false) }
  | "not"   { NOT }
  | float   { FLOAT (float_of_string (lexeme lexbuf)) }
- | ident   { IDENT (lexeme lexbuf) }
  | '-'     { MINUS }
  | '+'     { PLUS }
  | '*'     { MULT }
@@ -30,6 +29,7 @@ rule token = parse
  | "!="    { NOT_EQUAL }
  | "<="    { LESS_EQUAL }
  | ">="    { GREATER_EQUAL }
+ | "=="    { EQUAL_EQUAL }
  | '<'     { LESS }
  | '>'     { GREATER }
  | "if"    { IF }
@@ -40,6 +40,7 @@ rule token = parse
  | "in"    { IN }
  | "_"     { IDENT(Id.gentmp Type.Unit) }
  | ";"     { SEMICOLON }
+ | ident   { IDENT (lexeme lexbuf) }
  | eof     { EOF }
 
 and comment = parse

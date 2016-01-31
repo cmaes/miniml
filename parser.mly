@@ -15,6 +15,7 @@ let addtype x = (x, Type.gentyp ())
 %token NOT_EQUAL
 %token LESS_EQUAL
 %token GREATER_EQUAL
+%token EQUAL_EQUAL
 %token LESS
 %token GREATER
 %token IF
@@ -37,7 +38,7 @@ let addtype x = (x, Type.gentyp ())
 %right PREC_LET
 %right SEMICOLON
 %right PREC_IF
-%left  EQUAL NOT_EQUAL LESS GREATER LESS_EQUAL GREATER_EQUAL
+%left  EQUAL_EQUAL NOT_EQUAL LESS GREATER LESS_EQUAL GREATER_EQUAL
 %left  PLUS MINUS
 %left  MULT DIV
 %right PREC_UNARY_MINUS
@@ -64,7 +65,7 @@ expr:
     | MINUS; expr                          { Neg $2 } %prec PREC_UNARY_MINUS
     | expr; PLUS; expr                                           { Add ($1, $3) }
     | expr; MINUS; expr                                          { Sub ($1, $3) }
-    | expr; EQUAL; expr                                          { Eq ($1, $3) }
+    | expr; EQUAL_EQUAL; expr                                          { Eq ($1, $3) }
     | expr; NOT_EQUAL; expr                                { Not (Eq ($1, $3)) }
     | expr; LESS; expr                                     { Not (Le ($3, $1)) } /* (* a < b -> not (b <= a) *) */
     | expr; GREATER; expr                                  { Not (Le ($1, $3)) } /* (* a > b -> not (a <= b) *)*/
