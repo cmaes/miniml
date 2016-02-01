@@ -71,10 +71,10 @@ let rec normalize env = function
   | Syntax.App(e1, e2s) ->
      let x, funtyp = normalize env e1 in
      (match funtyp with
-      | Type.Fun(_, t) -> let f = Id.gentmp funtyp in
+      | Type.Fun(r, t) -> let f = Id.gentmp funtyp in
                           let args = List.map (fun a -> fst (normalize env a)) e2s in
                           Let((f, funtyp), x, App(f, args)), t
-      | _ -> assert false)
+      | _ -> failwith ("Bad app type: " ^ Prettyprint.string_of_type funtyp))
 
 
 let inter_rep e = fst (normalize (Env.empty) e)

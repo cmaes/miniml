@@ -34,14 +34,21 @@ s.cmo: s.ml id.cmo
 typing.cmo: typing.ml env.cmo
 	ocamlc -c $(FLAGS) typing.ml
 
-inter.cmo: inter.ml env.cmo syntax.cmo typing.cmo
+inter.cmi: inter.mli syntax.cmo
+	ocamlc -c $(FLAGS) inter.mli
+
+closure.cmi: closure.mli inter.cmi
+	ocamlc -c $(FLAGS) closure.mli
+
+prettyprint.cmo: prettyprint.ml closure.cmi inter.cmi syntax.cmo
+	ocamlc -c $(FLAGS) prettyprint.ml
+
+inter.cmo: inter.ml env.cmo syntax.cmo typing.cmo prettyprint.cmo
 	ocamlc -c $(FLAGS) inter.ml
 
 closure.cmo: closure.ml inter.cmo s.cmo env.cmo syntax.cmo
 	ocamlc -c $(FLAGS) closure.ml
 
-prettyprint.cmo: prettyprint.ml closure.cmo inter.cmo syntax.cmo
-	ocamlc -c $(FLAGS) prettyprint.ml
 
 alpha.cmo: alpha.ml inter.cmo env.cmo syntax.cmo
 	ocamlc -c $(FLAGS) alpha.ml

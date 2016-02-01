@@ -10,8 +10,8 @@ let repl _ =
         print_endline "AST:";
         print_endline (Prettyprint.string_of_expr ast);
 
-        let typ = Typing.infer Env.empty ast in
-        let inter = Inter.inter_rep ast in
+        let ast_typ = Typing.inference ast in
+        let inter = Inter.inter_rep ast_typ in
 
         print_endline "INTER:";
         print_endline (Prettyprint.string_of_inter inter);

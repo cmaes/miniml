@@ -49,8 +49,8 @@ let rec string_of_type = function
   | Type.Unit -> "unit"
   | Type.Bool  -> "bool"
   | Type.Float -> "float"
-  | Type.Fun (ts, t) -> (List.fold_left (fun acc tt -> acc ^ (string_of_type tt) ^ "->" ) "" ts) ^ (string_of_type t)
-  | Type.Var({ contents = Some t }) -> string_of_type t
+  | Type.Fun (ts, t) -> "(" ^ pp_list (List.map (string_of_type) ts) ^ " -> " ^ (string_of_type t) ^ ")"
+  | Type.Var({ contents = Some t }) -> "var-some: " ^ string_of_type t
   | Type.Var({ contents = None }) -> "unknown"
 
 
@@ -95,9 +95,11 @@ let rec string_of_closure_expr e = c_to_str (-1) e
       | Closure.Sub  (e1, e2) -> (4, (c_to_str 4 e1) ^ " - " ^ (c_to_str 5 e2))
       | Closure.Le   (e1, e2) -> (3, (c_to_str 3 e1) ^ " <= " ^ (c_to_str 4 e2))
       | Closure.Eq   (e1, e2) -> (2, (c_to_str 2 e1) ^ " == " ^ (c_to_str 3 e2))
-      | Closure.If   (p, c, a) -> (1, "if P:" ^ (c_to_str (-1) p) ^ " then C:" ^ (c_to_str (-1) c) ^ " else A:" ^ (c_to_str (-1) a))
+      | Closure.If   (p, c, a) ->
+         (1, "if P:" ^ (c_to_str (-1) p) ^ " then C:" ^ (c_to_str (-1) c) ^ " else A:" ^ (c_to_str (-1) a))
       | Closure.Let  ((i, t), e1, e2) -> (0, "let " ^ i ^ " = " ^ (c_to_str (-1) e1) ^ " in " ^ (c_to_str (-1) e2))
-      | Closure.MakeCls ((x,t), _, e) -> (7, "makecls (" ^ x ^ ", " ^ (c_to_str (-1) e) ^ ")")
+      | Closure.MakeCls ((x,t), {Closure.entry = x'; Closure.actual_fv = fvs}, e) ->
+         (7, "makecls (" ^ x ^ ", {" ^ x' ^ " , " ^ (pp_list fvs) ^ " }, " ^  (c_to_str (-1) e) ^ ")")
       | Closure.AppCls  (f, elst) -> (7, "appcls: " ^  f ^ " appargs: " ^ pp_list (List.map (c_to_str (-1)) elst))
       | Closure.AppDir (f, elst) -> (7, "appdir: " ^  f ^ " appargs: " ^ pp_list (List.map (c_to_str (-1)) elst))
     in
