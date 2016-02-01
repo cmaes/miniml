@@ -6,8 +6,25 @@ let repl _ =
         print_string "MiniML> ";
         let str = read_line () in
         let ast = Parser.exp Lexer.token (Lexing.from_string str) in
+
+        print_endline "AST:";
         print_endline (Prettyprint.string_of_expr ast);
-        print_endline (Prettyprint.string_of_type (Typing.infer Env.empty ast))
+
+        let typ = Typing.infer Env.empty ast in
+        let inter = Inter.inter_rep ast in
+
+        print_endline "INTER:";
+        print_endline (Prettyprint.string_of_inter inter);
+
+        let alpha = Alpha.rename_idents inter in
+
+        print_endline "ALPHA:";
+        print_endline (Prettyprint.string_of_inter alpha);
+
+        let prog  = Closure.closure_convert alpha in
+
+        print_endline "PROG:";
+        print_endline (Prettyprint.string_of_prog prog)
     done
   with
     End_of_file -> print_endline "\nGoodbye."

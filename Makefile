@@ -1,7 +1,7 @@
 all: miniml.byte
 
 OBJECTS = type.cmo id.cmo syntax.cmo lexer.cmo parser.cmo prettyprint.cmo \
-          env.cmo typing.cmo
+          env.cmo s.cmo typing.cmo alpha.cmo closure.cmo inter.cmo
 
 lexer.ml: lexer.mll
 	ocamllex lexer.mll
@@ -25,14 +25,26 @@ parser.cmo: parser.mli parser.ml syntax.cmo
 lexer.cmo: lexer.ml parser.cmo
 	ocamlc -c $(FLAGS) lexer.ml
 
-prettyprint.cmo: prettyprint.ml syntax.cmo
-	ocamlc -c $(FLAGS) prettyprint.ml
-
 env.cmo: env.ml id.cmo
 	ocamlc -c $(FLAGS) env.ml
 
+s.cmo: s.ml id.cmo
+	ocamlc -c $(FLAGS) s.ml
+
 typing.cmo: typing.ml env.cmo
-	ocamlc -c $(FLAG) typing.ml
+	ocamlc -c $(FLAGS) typing.ml
+
+inter.cmo: inter.ml env.cmo syntax.cmo typing.cmo
+	ocamlc -c $(FLAGS) inter.ml
+
+closure.cmo: closure.ml inter.cmo s.cmo env.cmo syntax.cmo
+	ocamlc -c $(FLAGS) closure.ml
+
+prettyprint.cmo: prettyprint.ml closure.cmo inter.cmo syntax.cmo
+	ocamlc -c $(FLAGS) prettyprint.ml
+
+alpha.cmo: alpha.ml inter.cmo env.cmo syntax.cmo
+	ocamlc -c $(FLAGS) alpha.ml
 
 miniml.byte: miniml.ml $(OBJECTS)
 	ocamlfind ocamlc $(FLAGS) -linkpkg $(OBJECTS) miniml.ml -o miniml.byte

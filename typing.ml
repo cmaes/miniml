@@ -5,6 +5,39 @@ exception Error of expr * Type.t * Type.t
 
 let extenv = ref Env.empty
 
+(* for pretty printing and filling in untyped variables *)
+let rec deref_typ = function
+  | Type.Fun(t1s, t2) -> Type.Fun(List.map deref_typ t1s, deref_typ t2)
+  | Type.Var({ contents = None } as r)  ->
+     Format.eprintf "uninstantiated type variable detected; assuming float@.";
+     r := Some (Type.Float);
+     Type.Float
+  | Type.Var ({ contents = Some t} as r) ->
+     let t' = deref_typ t in
+     r := Some(t');
+     t'
+  | t -> t
+
+let rec deref_id_typ (x, t) = (x, deref_typ t)
+let rec deref_expr = function
+  | Not(e) -> Not (deref_expr e)
+  | Neg(e) ->  Neg (deref_expr e)
+  | Add(e1, e2) -> Add(deref_expr e1, deref_expr e2)
+  | Sub (e1, e2) -> Sub(deref_expr e1, deref_expr e2)
+  | Mult (e1, e2) -> Mult(deref_expr e1, deref_expr e2)
+  | Div (e1, e2) -> Div(deref_expr e1, deref_expr e2)
+  | Eq (e1, e2) -> Eq(deref_expr e1, deref_expr e2)
+  | Le (e1, e2) -> Le(deref_expr e1, deref_expr e2)
+  | If (e1, e2, e3) -> If(deref_expr e1, deref_expr e2, deref_expr e3)
+  | Let (xt, e1, e2) -> Let(deref_id_typ xt, deref_expr e1, deref_expr e2)
+  | LetRec( { name = xt; args = yts; body = e1}, e2) ->
+     LetRec({ name = deref_id_typ xt;
+              args = List.map deref_id_typ yts;
+              body = deref_expr e1},
+            deref_expr e2)
+  | App (e1, es) -> App(deref_expr e1, List.map deref_expr es)
+  | e -> e
+
 (* occur does an occurs check to see whether the the type
    variable appears inside the other type. It is necessary
    so that the resulting type has not cycle. For example,
@@ -82,4 +115,11 @@ let rec infer env e =
        unify (infer env f) (Type.Fun(List.map (infer env) args, t));
        t
   with
-    Unify (t1, t2) -> raise (Error(e, t1, t2))
+    Unify (t1, t2) -> raise (Error(deref_expr e, deref_typ t1, deref_typ t2))
+
+
+let inference e =
+  extenv := Env.empty;
+  ignore (infer Env.empty e);
+  extenv := Env.map deref_typ !extenv;
+  deref_expr e
