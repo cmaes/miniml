@@ -1,4 +1,4 @@
-type closure = { entry: Id.t; actual_fv: Id.t list }
+type closure = { entry: Id.t; actual_fv: (Id.t * Type.t) list }
 
 type expr =
   | Unit
@@ -34,7 +34,7 @@ let rec freevar = function
   | If(e1, e2, e3) -> S.union (freevar e1) (S.union (freevar e1) (freevar e2))
   | Let((x, t), e1, e2) -> S.union (freevar e1) (S.remove x (freevar e2))
   | Var(x) -> S.singleton x
-  | MakeCls((x,t), {entry = l; actual_fv = ys}, e) -> S.remove x (S.union (S.of_list ys) (freevar e))
+  | MakeCls((x,t), {entry = l; actual_fv = ys}, e) -> S.remove x (S.union (S.of_list (List.map fst ys)) (freevar e))
   | AppCls (x, es) -> S.add x (List.fold_left (fun s e -> S.union (freevar e) s) S.empty es)
   | AppDir (_, es) -> List.fold_left (fun s e -> S.union (freevar e) s) S.empty es
 
@@ -79,7 +79,7 @@ let rec convert env known = function
      toplevel := { name = (x, t); args = yts; formal_fv = free_var_typs; body = e1'} :: !toplevel;
      let e2' = convert env' known' e2 in
      if S.mem x (freevar e2') then
-       MakeCls( (x,t), { entry = x; actual_fv = free_vars_lst}, e2')
+       MakeCls( (x,t), { entry = x; actual_fv = free_var_typs}, e2')
      else
        (Format.eprintf "eliminating closure(s) %s@." x;
         e2')

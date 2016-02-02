@@ -99,7 +99,7 @@ let rec string_of_closure_expr e = c_to_str (-1) e
          (1, "if P:" ^ (c_to_str (-1) p) ^ " then C:" ^ (c_to_str (-1) c) ^ " else A:" ^ (c_to_str (-1) a))
       | Closure.Let  ((i, t), e1, e2) -> (0, "let " ^ i ^ " = " ^ (c_to_str (-1) e1) ^ " in " ^ (c_to_str (-1) e2))
       | Closure.MakeCls ((x,t), {Closure.entry = x'; Closure.actual_fv = fvs}, e) ->
-         (7, "makecls (" ^ x ^ ", {" ^ x' ^ " , " ^ (pp_list fvs) ^ " }, " ^  (c_to_str (-1) e) ^ ")")
+         (7, "makecls (" ^ x ^ ", {" ^ x' ^ " , " ^ (pp_list (List.map fst fvs)) ^ " }, " ^  (c_to_str (-1) e) ^ ")")
       | Closure.AppCls  (f, elst) -> (7, "appcls: " ^  f ^ " appargs: " ^ pp_list (List.map (c_to_str (-1)) elst))
       | Closure.AppDir (f, elst) -> (7, "appdir: " ^  f ^ " appargs: " ^ pp_list (List.map (c_to_str (-1)) elst))
     in
@@ -110,10 +110,10 @@ let string_of_closure_fundef { Closure.name = (x, t);
                                Closure.args = yts;
                                Closure.formal_fv = fvs;
                                Closure.body = e } =
-  "fundef: " ^ x ^ " " ^ pp_list (List.map fst yts) ^ " {env: " ^ pp_list (List.map fst fvs) ^ "} " ^ string_of_closure_expr e
+  "fundef: " ^ x ^ " funtyp: " ^ string_of_type t ^ " args:" ^ pp_list (List.map fst yts) ^ " {env: " ^ pp_list (List.map fst fvs) ^ "} body: " ^ string_of_closure_expr e
 
 let string_of_prog = function
   | Closure.Prog (defs, e) ->
-     let defs_str = List.fold_left (fun acc f -> acc ^ string_of_closure_fundef f) "" defs in
+     let defs_str = List.fold_left (fun acc f -> acc ^ string_of_closure_fundef f ^ "\n") "" defs in
      let e_str = string_of_closure_expr e in
      defs_str ^ ";; " ^ e_str

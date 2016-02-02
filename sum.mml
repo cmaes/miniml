@@ -1,0 +1,8 @@
+let rec sum n =
+   let rec helper i acc =
+     if i < n then helper (i+1) (acc + i)
+     else acc
+   in
+   helper 0 0
+in
+  printd (sum 100)

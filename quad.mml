@@ -1,0 +1,4 @@
+let rec quad y =
+    let rec double x = x + x  in double (double y)
+in
+  printd (quad 1)

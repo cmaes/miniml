@@ -1,7 +1,11 @@
 all: miniml.byte
 
 OBJECTS = type.cmo id.cmo syntax.cmo lexer.cmo parser.cmo prettyprint.cmo \
-          env.cmo s.cmo typing.cmo alpha.cmo closure.cmo inter.cmo
+          env.cmo s.cmo typing.cmo inter.cmo alpha.cmo closure.cmo compile.cmo
+
+LLVM_MODULES = llvm,llvm.analysis,llvm.executionengine,llvm.target,llvm.scalar_opts
+
+FLAGS = -g
 
 lexer.ml: lexer.mll
 	ocamllex lexer.mll
@@ -46,17 +50,38 @@ prettyprint.cmo: prettyprint.ml closure.cmi inter.cmi syntax.cmo
 inter.cmo: inter.ml env.cmo syntax.cmo typing.cmo prettyprint.cmo
 	ocamlc -c $(FLAGS) inter.ml
 
-closure.cmo: closure.ml inter.cmo s.cmo env.cmo syntax.cmo
-	ocamlc -c $(FLAGS) closure.ml
-
-
 alpha.cmo: alpha.ml inter.cmo env.cmo syntax.cmo
 	ocamlc -c $(FLAGS) alpha.ml
 
+closure.cmo: closure.ml inter.cmo s.cmo env.cmo syntax.cmo
+	ocamlc -c $(FLAGS) closure.ml
+
+compile.cmo: compile.ml closure.cmo id.cmo
+	ocamlfind	ocamlc -c $(FLAGS) -package llvm compile.ml
+
 miniml.byte: miniml.ml $(OBJECTS)
-	ocamlfind ocamlc $(FLAGS) -linkpkg $(OBJECTS) miniml.ml -o miniml.byte
+	ocamlfind ocamlc $(FLAGS) -package $(LLVM_MODULES) -linkpkg $(OBJECTS) miniml.ml -o miniml.byte
+
+%.ll: %.mml miniml.byte
+	./miniml.byte $<
+
+%.bc: %.ll
+	llvm-as-3.7 $<
+
+%.s: %.bc
+	llc-3.7 $<
+
+runtime.o: runtime.c
+	clang-3.7 -c runtime.c
+
+%.o: %.s
+	clang-3.7 -c $<
+
+%.exe: %.o runtime.o
+	clang-3.7 -o $@ $^
 
 clean:
 	-rm lexer.ml parser.ml parser.mli *.cmo *.cmi
 	-rm *.conflicts
 	-rm *.byte
+	-rm *.ll *.bc *.s *.o *.exe

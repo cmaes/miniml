@@ -1,4 +1,4 @@
-type closure = { entry: Id.t; actual_fv: Id.t list }
+type closure = { entry: Id.t; actual_fv: (Id.t * Type.t) list }
 
 type expr =
   | Unit
