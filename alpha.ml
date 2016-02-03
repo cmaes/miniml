@@ -28,7 +28,7 @@ let rec rename env = function
                 args = List.map (fun (x,t) -> (find x env', t)) yts;
                 body = rename env' e1},
               rename env e2)
-  | App (f, es) -> App (find f env, List.map (rename env) es)
+  | App ((f,t,tys), es) -> App ((find f env, t, tys), List.map (rename env) es)
   | ExtFunApp(x, es) -> ExtFunApp(x, List.map (rename env) es)
 
 let rename_idents e = rename (Env.empty) e

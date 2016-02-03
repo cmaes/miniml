@@ -15,12 +15,13 @@ type expr =
   | Let of (Id. t * Type.t) * expr * expr
   | Var of Id.t
   | MakeCls of (Id.t * Type.t) * closure * expr
-  | AppCls of Id.t * expr list
+  | AppCls of (Id.t * Type.t * Type.t list) * expr list
   | AppDir of Id.t * expr list
 
 type fundef = { name: Id.t * Type.t;
                 args: (Id.t * Type.t) list;
                 formal_fv: (Id.t * Type.t) list;
+                mutable takes_closure: bool;
                 body: expr }
 type prog = Prog of fundef list * expr
 
@@ -35,7 +36,7 @@ let rec freevar = function
   | Let((x, t), e1, e2) -> S.union (freevar e1) (S.remove x (freevar e2))
   | Var(x) -> S.singleton x
   | MakeCls((x,t), {entry = l; actual_fv = ys}, e) -> S.remove x (S.union (S.of_list (List.map fst ys)) (freevar e))
-  | AppCls (x, es) -> S.add x (List.fold_left (fun s e -> S.union (freevar e) s) S.empty es)
+  | AppCls ((x,t,ty), es) -> S.add x (List.fold_left (fun s e -> S.union (freevar e) s) S.empty es)
   | AppDir (_, es) -> List.fold_left (fun s e -> S.union (freevar e) s) S.empty es
 
 
@@ -65,28 +66,30 @@ let rec convert env known = function
      let known' = S.add x known in (* add x to the know functions *)
      let e1' = convert (Env.add_list yts env') known' e1 in
      let free_vars = S.diff (freevar e1') (S.of_list (List.map fst yts)) in
-     let known', e1' =
-       if S.is_empty free_vars then known', e1' else
+     let known', e1', isclosure =
+       if S.is_empty free_vars then known', e1', false else
          (* body of the function contains free variables *)
          (Format.eprintf "free variable(s) %s found in function %s@." (pp_list (S.elements free_vars)) x;
           Format.eprintf "function %s cannot be directly applied@. " x;
           (* revert toplevel to the backup, removing the current function *)
           toplevel := toplevel_backup;
           let e1' = convert (Env.add_list yts env') known e1 in
-          known, e1') in
+          known, e1', true) in
      let free_vars_lst = S.elements (S.diff (freevar e1') (S.add x (S.of_list (List.map fst yts)))) in
      let free_var_typs = List.map (fun z -> (z, Env.find z env')) free_vars_lst in
-     toplevel := { name = (x, t); args = yts; formal_fv = free_var_typs; body = e1'} :: !toplevel;
+     let fun_def = { name = (x, t); args = yts; formal_fv = free_var_typs; takes_closure = isclosure; body = e1'} in
+     toplevel := fun_def :: !toplevel;
      let e2' = convert env' known' e2 in
      if S.mem x (freevar e2') then
-       MakeCls( (x,t), { entry = x; actual_fv = free_var_typs}, e2')
+       (fun_def.takes_closure <- true;
+        MakeCls( (x,t), { entry = x; actual_fv = free_var_typs}, e2'))
      else
        (Format.eprintf "eliminating closure(s) %s@." x;
         e2')
-  | Inter.App(f, es) when S.mem f known ->
+  | Inter.App((f,t,tys), es) when S.mem f known ->
      Format.eprintf "directly applying %s@." f;
      AppDir(f, List.map (convert env known) es)
-  | Inter.App(f, es) -> AppCls(f, List.map (convert env known) es)
+  | Inter.App((f,t,tys), es) -> AppCls((f,t, tys), List.map (convert env known) es)
   | Inter.ExtFunApp(f, es) -> AppDir("miniml_" ^ f, List.map (convert env known) es)
 
 

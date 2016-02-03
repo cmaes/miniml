@@ -15,7 +15,7 @@ type expr =
   | Let of (Id.t * Type.t) * expr * expr
   | Var of Id.t
   | LetRec of fundef * expr
-  | App of Id.t * expr list
+  | App of (Id.t * Type.t * Type.t list) * expr list
   | ExtFunApp of Id.t * expr list
 and
   fundef = { name: Id.t * Type.t; args: (Id.t * Type.t) list; body: expr }
@@ -66,14 +66,16 @@ let rec normalize env = function
       | _ -> assert false)
   | Syntax.App(Syntax.Var(f), e2s) when (Env.mem f env)->
      let t = Env.find f env in
-     let args = List.map (fun a -> fst (normalize env a)) e2s in
-     App(f, args), t
+     let argp = List.map (normalize env) e2s in
+     let argv, argt = List.split argp in
+     App((f, t, argt), argv), t
   | Syntax.App(e1, e2s) ->
      let x, funtyp = normalize env e1 in
      (match funtyp with
       | Type.Fun(r, t) -> let f = Id.gentmp funtyp in
-                          let args = List.map (fun a -> fst (normalize env a)) e2s in
-                          Let((f, funtyp), x, App(f, args)), t
+                          let argp = List.map (normalize env) e2s in
+                          let argv, argt = List.split argp in
+                          Let((f, funtyp), x, App((f, t, argt), argv)), t
       | _ -> failwith ("Bad app type: " ^ Prettyprint.string_of_type funtyp))
 
 

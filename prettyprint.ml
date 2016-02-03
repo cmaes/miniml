@@ -74,7 +74,7 @@ let rec string_of_inter e = i_to_str (-1) e
       | Inter.LetRec ( { Inter.name = f; Inter.args = a; Inter.body = e1}, e2) ->
          (0, "let rec " ^ (fst f) ^ " " ^ pp_list (List.map (fst) a)  ^ " = " ^
                (i_to_str (-1) e1) ^ " in " ^ (i_to_str (-1) e2))
-      | Inter.App  (f, elst) -> (7, "apphead: " ^  f ^ " appargs: " ^ pp_list (List.map (i_to_str (-1)) elst))
+      | Inter.App  ((f, t, tys), elst) -> (7, "apphead: " ^  f ^ " appargs: " ^ pp_list (List.map (i_to_str (-1)) elst))
       | Inter.ExtFunApp (f, elst) -> (7, "eapphead: " ^  f ^ " appargs: " ^ pp_list (List.map (i_to_str (-1)) elst))
     in
     if m < n then "(" ^ str ^ ")" else str
@@ -100,7 +100,7 @@ let rec string_of_closure_expr e = c_to_str (-1) e
       | Closure.Let  ((i, t), e1, e2) -> (0, "let " ^ i ^ " = " ^ (c_to_str (-1) e1) ^ " in " ^ (c_to_str (-1) e2))
       | Closure.MakeCls ((x,t), {Closure.entry = x'; Closure.actual_fv = fvs}, e) ->
          (7, "makecls (" ^ x ^ ", {" ^ x' ^ " , " ^ (pp_list (List.map fst fvs)) ^ " }, " ^  (c_to_str (-1) e) ^ ")")
-      | Closure.AppCls  (f, elst) -> (7, "appcls: " ^  f ^ " appargs: " ^ pp_list (List.map (c_to_str (-1)) elst))
+      | Closure.AppCls  ((f, t, tys), elst) -> (7, "appcls: " ^  f ^ " appargs: " ^ pp_list (List.map (c_to_str (-1)) elst))
       | Closure.AppDir (f, elst) -> (7, "appdir: " ^  f ^ " appargs: " ^ pp_list (List.map (c_to_str (-1)) elst))
     in
     if m < n then "(" ^ str ^ ")" else str

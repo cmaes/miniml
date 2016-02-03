@@ -13,7 +13,7 @@ type expr =
   | Let of (Id.t * Type.t) * expr * expr
   | Var of Id.t
   | LetRec of fundef * expr
-  | App of Id.t * expr list
+  | App of (Id.t * Type.t * Type.t list) * expr list
   | ExtFunApp of Id.t * expr list
 and
   fundef = { name: Id.t * Type.t; args: (Id.t * Type.t) list; body: expr }

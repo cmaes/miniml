@@ -22,9 +22,35 @@ let i8_ptr_type = pointer_type i8_type
 let malloc_type = function_type i8_ptr_type [| i64_type |]
 let malloc_fun = declare_function "miniml_malloc" malloc_type the_module
 
+
+(* A closure struct has the following form:
+          struct closure {
+                           i8* code; /* void *code is a function pointer to the code */
+                           i8* env;  /* void *env is a pointer to an environment struct  */
+                          }
+    All closure functions must be in the following form
+    ret_type name (struct closure *, arg_type_1 arg1, ..., arg_type_n argn)
+*)
+
+let closure_struct_type = named_struct_type context "closure"
+let _ = struct_set_body closure_struct_type [| i8_ptr_type; i8_ptr_type |] false
+let closure_type = pointer_type closure_struct_type
+
 (*let named_type = named_struct_type context "closure"
 let _ = struct_set_body named_type [| (function_type void_type [| named_type|]); i64_type |] false
 let junk = declare_function "test" (function_type void_type [| named_type; double_type |]) the_module *)
+
+type base_type =
+  | UnitTy
+  | BoolTy
+  | FloatTy
+  | ClosureTy
+
+let rec basetype2llvm = function
+  | UnitTy -> void_type
+  | BoolTy -> bool_type
+  | FloatTy -> double_type
+  | ClosureTy -> closure_type
 
 let rec type2llvm = function
   | Type.Unit -> void_type
@@ -32,6 +58,21 @@ let rec type2llvm = function
   | Type.Float -> double_type
   | Type.Fun (args, ret) -> function_type (type2llvm ret) (Array.of_list (List.map type2llvm args))
   | Type.Var _ -> assert false
+
+(* This function constructs a return type for functions. Functions that return functions
+   must return struct closure* in the generated LLVM IR *)
+let return_type = function
+  | Type.Fun(_, Type.Unit) -> UnitTy
+  | Type.Fun(_, Type.Bool) -> BoolTy
+  | Type.Fun(_, Type.Float) -> FloatTy
+  | Type.Fun(_, Type.Fun(_,_)) -> ClosureTy
+  | _ -> assert false
+
+let string_of_base_type = function
+  | UnitTy -> "unit"
+  | BoolTy -> "bool"
+  | FloatTy -> "float"
+  | ClosureTy -> "closure"
 
 exception Return_val of llvalue
 let return_value v = raise (Return_val v)
@@ -114,7 +155,6 @@ let rec compile_expr = function
        compile_expr e2
   | Var x -> lookup x
   | MakeCls ((name, t), { entry = fun_name; actual_fv = fv}, body) ->
-     (* build a struct containing the function pointer and the free vars *)
      let callee =
        match lookup_function fun_name the_module with
        | Some func -> func
@@ -126,59 +166,92 @@ let rec compile_expr = function
      (*let fv_types = Array.of_list (List.map (fun (n, t) -> type2llvm t) fv) in *)
      (*let struct_ar = Array.append [| (type_of callee) |] fv_types in *)
      (*let struct_t  = type_of (param callee 0) in *)
-     let struct_t = match type_by_name the_module (fun_name ^ "_closure") with
-       | Some t -> t
-       | _ -> compiler_error ("Couldn't find closure type") in
-     let struct_ptr_t = pointer_type struct_t in
 
      (* get the size of the struct *)
-     let size_struct = size_of struct_t in
+     let size_struct = size_of closure_struct_type in
 
-     (* malloc the struct *)
+     (* malloc the closure struct *)
      let malloc_ptr = build_call malloc_fun [| size_struct |] "malloctmp" builder in
 
      (* bitcast the pointer returned by malloc *)
-     let struct_ptr = build_bitcast malloc_ptr struct_ptr_t "bctmp" builder in
+     let closure_ptr = build_bitcast malloc_ptr closure_type "closure" builder in
 
      dump_module the_module;
-     (* get the first element of the struct *)
-     let name_elem = build_struct_gep struct_ptr 0 "nametmp" builder in
+     (* get the first element of the closure struct *)
+     let name_elem = build_struct_gep closure_ptr 0 "name_elem" builder in
 
-     (* store the function name into the name element *)
-     ignore (build_store callee name_elem builder);
+     (* cast the function pointer to an i8* *)
+     let name_tmp = build_bitcast callee i8_ptr_type "nametmp" builder in
+
+     (* store the casted function name into the name element *)
+     ignore (build_store name_tmp name_elem builder);
+
+     (* build the free variable struct *)
+     let fvtyps = Array.of_list (List.map (fun r -> type2llvm (snd r)) fv) in
+     let env_struct_t = struct_type fvtyps in
+     let env_struct_ptr_t = pointer_type env_struct_t in
+
+     let env_size = size_of env_struct_t in
+
+     (* malloc the env struct *)
+     let malloc_env_ptr = build_call malloc_fun [| env_size |] "malloctmp" builder in
+
+     (* get the second element of the closure struct *)
+     let env_elem = build_struct_gep closure_ptr 1 "env_elem" builder in
+
+     (* store the env pointer into the closure struct *)
+     ignore (build_store malloc_env_ptr env_elem builder);
+
+     (* bitcast the i8* malloced env pointer to a pointer to the env struct *)
+     let env_ptr = build_bitcast malloc_env_ptr env_struct_ptr_t "envptr" builder in
 
      (* Store the free variables into the struct *)
      List.iteri (fun i (name, typ) ->
-                 (* get the i+1 elem of the struct *)
-                 let elem = build_struct_gep struct_ptr (i+1) "fvtmp" builder in
+                 (* get the ith elem of the env struct *)
+                 let elem = build_struct_gep env_ptr i "fvtmp" builder in
                  (* get the value of the free variable *)
                  let value = lookup name in
                  (* store the value into the element *)
                  ignore (build_store value elem builder))
                 fv;
-    (* Add the struct to the hash table *)
-     Hashtbl.add named_values name struct_ptr;
+
+    (* Add the closure struct pointer to the hash table *)
+     Hashtbl.add named_values name closure_ptr;
 
     (* Compile the expression *)
      compile_expr body
-  | AppCls (f, elist) ->
+  | AppCls ((f, typ, tys), elist) ->
      (* Lookup the closure struct *)
-     let struct_ptr = lookup f in
+     let closure_ptr = lookup f in
+     print_endline ("appling closure " ^ f ^ "!!!");
+     print_endline ("closure " ^ f ^ " type " ^ Prettyprint.string_of_type typ);
+     print_endline ("apply closure struct " ^ f ^ " " ^ (string_of_lltype (type_of closure_ptr)));
 
-     print_endline ("apply closure struct " ^ f ^ " " ^ (string_of_lltype (type_of struct_ptr)));
+     (* construct the return type of the closure *)
+     let ret_type = basetype2llvm (return_type typ) in
+
+     (* compute the argument types of the closure *)
+     let arg_type = Array.append [| closure_type |] (Array.of_list (List.map type2llvm tys)) in
 
      (* get the first element of the struct; corresponding to the function pointer *)
-     let name_elem = build_struct_gep struct_ptr 0 "nametmp" builder in
-     let callee = build_load name_elem "calletmp" builder in
+     let name_elem = build_struct_gep closure_ptr 0 "name_elem" builder in
+     let name_tmp = build_load name_elem "calletmp" builder in
+
+     let callee_type = function_type ret_type arg_type in
+
+     let callee = build_bitcast name_tmp (pointer_type callee_type) ("callee_" ^ f) builder in
 
      (* build the argument array *)
      let args = Array.map compile_expr (Array.of_list elist) in
-     let full_args = Array.append [| struct_ptr |] args in
+     let full_args = Array.append [| closure_ptr |] args in
 
+     dump_module the_module;
      (* call the closure function *)
      print_endline ("calling closure " ^ (string_of_lltype (type_of callee)));
+     print_endline (string_of_llvalue callee);
+     Array.iter (fun s -> print_endline (string_of_llvalue s)) full_args;
+     print_endline "making call!!!!";
      let ret = build_call callee full_args "rettmp" builder in
-     dump_module the_module;
      ret
 
   | AppDir (f, elist) ->  let callee =
@@ -217,41 +290,24 @@ let compile_externs es = List.map (compile_extern) es
 let compile_prototype { name = (func_name, ret_typ);
                         args = arg_lst;
                         formal_fv = fv_lst } =
-  (* A closure struct has the following form:
-          struct closure {
-                           ret_typ (closure *, arg1_typ arg1, ..., argn_typ argn);
-                           fv1_typ fv_1;
-                           ...
-                           fvn_typ fv_n;
-                          }
-   *)
 
   (* Make the argument types *)
   let args = Array.of_list (List.map (fun a -> type2llvm (snd a)) arg_lst) in
-  let fv_args = Array.of_list (List.map (fun a -> type2llvm (snd a)) fv_lst) in
 
   (* Make the return type *)
-  let ret_type = match ret_typ with
-    | Type.Fun(_, t) -> t
-    | _ -> assert false in
-  let ll_ret_type = type2llvm ret_type in
-
-  (* Make the closure struct *)
-  let struct_name  = (func_name ^ "_closure") in
-  let closure_struct_t = named_struct_type context  struct_name in
+  let ret_type = return_type ret_typ in
+  let ll_ret_type = basetype2llvm ret_type in
 
   let final_args =
     if List.length fv_lst > 0 then
-      Array.append [|pointer_type closure_struct_t|] args
+      Array.append [| closure_type |] args
     else
       args
   in
   (* Make the function type: ret_typ name(struct closure*, arg1, ..., argn) etc. *)
   let ft = function_type ll_ret_type final_args in
 
-  struct_set_body closure_struct_t (Array.append [| pointer_type ft |] fv_args) false;
-
-  print_endline ("Closure Return type: " ^ (Prettyprint.string_of_type ret_type) ^ " fname:" ^func_name);
+  print_endline ("Closure Return type: " ^ (string_of_base_type ret_type) ^ " fname:" ^func_name);
   print_endline ("Return type: " ^ (string_of_lltype ll_ret_type) ^ " fname:" ^ func_name);
 
   let f =
@@ -278,15 +334,27 @@ let compile_prototype { name = (func_name, ret_typ);
    f)
 
 let extract_fv fvs the_function =
-  let envptr = param the_function 0 in
+  let closure_ptr = param the_function 0 in
   let zero  = const_int i32_type 0 in
+  let one   = const_int i32_type 1 in
+  let env_elem = build_gep closure_ptr [| zero; one |] "envintptr" builder in
+  let env_i8 = build_load env_elem "env_i8" builder in
+
+  (* build the fv struct type *)
+  let fvtyps = Array.of_list (List.map (fun fv -> type2llvm (snd fv)) fvs) in
+  let env_struct_t = struct_type fvtyps in
+  let env_struct_ptr_t = pointer_type env_struct_t in
+
+  (* bitcast the i8* env pointer to a pointer to the env struct *)
+  let env_ptr = build_bitcast env_i8 env_struct_ptr_t "envptr" builder in
+
+  dump_module the_module;
 
   (* Go through each fv and remove it from the env struct and name it *)
   List.iteri (fun i (name, typ) ->
               (* get ith element from closure struct *)
               print_endline ("set name: " ^  name);
-              let idx  = const_int i32_type (i+1) in
-              let elem = build_gep envptr [| zero; idx |] name builder in
+              let elem = build_struct_gep env_ptr i name builder in
               let value = build_load elem "fvtmp" builder in
               Hashtbl.add named_values name value
              )
@@ -298,6 +366,7 @@ let compile_func the_fpm func_def =
   let the_function = compile_prototype func_def in
   let fvs  = func_def.formal_fv in
   let body = func_def.body in
+  let takes_closure = func_def.takes_closure in
 
   (* Create a new basic block to start insertion into *)
   let bb = append_block context "entry" the_function in
@@ -305,7 +374,10 @@ let compile_func the_fpm func_def =
 
   try
     (* Extract free variables from env struct *)
-    extract_fv fvs the_function;
+    if takes_closure then
+      extract_fv fvs the_function
+    else
+      ();
 
     let ret_val = compile_expr body in
     let ret_type = type_of ret_val in
@@ -355,6 +427,10 @@ let compile_program the_fpm program =
   ignore (compile_expr body);
 
   ignore (build_ret_void builder);
+
+  let oc = open_out "debug.ll" in
+  Printf.fprintf oc "%s\n" (string_of_llmodule the_module);
+  close_out oc;
 
   (* Validate the generate code, checking for consistency *)
   Llvm_analysis.assert_valid_function miniml_main;

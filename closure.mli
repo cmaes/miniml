@@ -15,12 +15,13 @@ type expr =
   | Let of (Id. t * Type.t) * expr * expr
   | Var of Id.t
   | MakeCls of (Id.t * Type.t) * closure * expr
-  | AppCls of Id.t * expr list
+  | AppCls of (Id.t * Type.t * Type.t list) * expr list
   | AppDir of Id.t * expr list
 
 type fundef = { name: Id.t * Type.t;
                 args: (Id.t * Type.t) list;
                 formal_fv: (Id.t * Type.t) list;
+                mutable takes_closure: bool;
                 body: expr }
 type prog = Prog of fundef list * expr
 
