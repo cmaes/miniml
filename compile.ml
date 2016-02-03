@@ -289,7 +289,8 @@ let compile_externs es = List.map (compile_extern) es
 
 let compile_prototype { name = (func_name, ret_typ);
                         args = arg_lst;
-                        formal_fv = fv_lst } =
+                        formal_fv = fv_lst;
+                        takes_closure = tc; } =
 
   (* Make the argument types *)
   let args = Array.of_list (List.map (fun a -> type2llvm (snd a)) arg_lst) in
@@ -299,7 +300,7 @@ let compile_prototype { name = (func_name, ret_typ);
   let ll_ret_type = basetype2llvm ret_type in
 
   let final_args =
-    if List.length fv_lst > 0 then
+    if tc then
       Array.append [| closure_type |] args
     else
       args
@@ -323,7 +324,7 @@ let compile_prototype { name = (func_name, ret_typ);
 
    (* Set names for all regular arguments *)
    let reg_params =
-     if List.length fv_lst > 0 then
+     if tc then
        List.tl (Array.to_list (params f))
      else
        Array.to_list (params f)
@@ -337,6 +338,7 @@ let extract_fv fvs the_function =
   let closure_ptr = param the_function 0 in
   let zero  = const_int i32_type 0 in
   let one   = const_int i32_type 1 in
+  print_endline (string_of_llvalue closure_ptr);
   let env_elem = build_gep closure_ptr [| zero; one |] "envintptr" builder in
   let env_i8 = build_load env_elem "env_i8" builder in
 
@@ -374,6 +376,7 @@ let compile_func the_fpm func_def =
 
   try
     (* Extract free variables from env struct *)
+    print_endline ("begin compile of " ^ name);
     if takes_closure then
       extract_fv fvs the_function
     else

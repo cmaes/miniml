@@ -109,8 +109,9 @@ let rec string_of_closure_expr e = c_to_str (-1) e
 let string_of_closure_fundef { Closure.name = (x, t);
                                Closure.args = yts;
                                Closure.formal_fv = fvs;
+                               Closure.takes_closure = tc;
                                Closure.body = e } =
-  "fundef: " ^ x ^ " funtyp: " ^ string_of_type t ^ " args:" ^ pp_list (List.map fst yts) ^ " {env: " ^ pp_list (List.map fst fvs) ^ "} body: " ^ string_of_closure_expr e
+  "fundef: " ^ x ^ " funtyp: " ^ string_of_type t ^ " args:" ^ pp_list (List.map fst yts) ^ " {env: " ^ pp_list (List.map fst fvs) ^ "} takes_closure: " ^ string_of_bool tc ^ "  body: " ^ string_of_closure_expr e
 
 let string_of_prog = function
   | Closure.Prog (defs, e) ->

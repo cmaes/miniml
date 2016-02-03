@@ -1,0 +1,8 @@
+let rec make_double b =
+    if b then
+       let rec double x = x + x in double
+    else
+       let rec id x = x in id
+in
+  let test1 = printd ((make_double true) 4) in
+  let test2 =  printd ((make_double false) 4) in 0
