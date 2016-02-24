@@ -26,3 +26,25 @@ opam install menhir
 # Goals
 
 A simple experiment in compiling a minimal ML-type language.
+
+# Running
+
+There is a small collection of sample programs written in miniml:
+ * fac.mml
+ * fib.mml
+ * sum.mml
+ * quad.mml
+ * adder.mml
+ * make_dbl.mml
+
+You can compile these programs by doing `make progname.exe`. For
+example, to compile fib.mml into an exectuable do:
+
+```
+make fib.exe
+```
+
+You can then run fib.exe via
+```
+./fib.exe
+```
